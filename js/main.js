@@ -139,18 +139,32 @@ function initTabs() {
 // ---------------------------------------------------------------------------
 // Guards: require a valid session, redirect if not logged in / wrong role
 // ---------------------------------------------------------------------------
-function requireAuth(requiredRole) {
+async function requireAuth(requiredRole) {
   const token = getToken();
-  const user = getUser();
-  if (!token || !user) {
+  
+  if (!token) {
     window.location.href = requiredRole === 'admin' ? 'admin-login.html' : 'index.html';
     return null;
   }
-  if (requiredRole && user.role !== requiredRole) {
+  
+  try {
+    // Verify token with backend
+    const data = await apiFetch('/me');
+    const user = data.user;
+    
+    if (requiredRole && user.role !== requiredRole) {
+      window.location.href = requiredRole === 'admin' ? 'admin-login.html' : 'index.html';
+      return null;
+    }
+    
+    // Keep local cache updated
+    localStorage.setItem('user', JSON.stringify(user));
+    return user;
+  } catch (error) {
+    clearSession();
     window.location.href = requiredRole === 'admin' ? 'admin-login.html' : 'index.html';
     return null;
   }
-  return user;
 }
 
 function logout() {
@@ -296,7 +310,7 @@ async function initUserDashboard() {
   const marker = document.getElementById('activityChart');
   if (!marker) return;
 
-  const user = requireAuth('user');
+  const user = await requireAuth('user');
   if (!user) return;
 
   const nameEl = document.getElementById('displayUsername');
@@ -324,7 +338,7 @@ async function initAdminDashboard() {
   const marker = document.getElementById('trafficChart');
   if (!marker) return;
 
-  const user = requireAuth('admin');
+  const user = await requireAuth('admin');
   if (!user) return;
 
   const adminIdEl = document.getElementById('displayAdminId');

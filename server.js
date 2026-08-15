@@ -9,7 +9,8 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_only_change_this_secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'my_super_secure_jwt_secret_2026';
+
 if (!process.env.JWT_SECRET) {
   console.warn('WARNING: JWT_SECRET not set in .env — using an insecure default. Set it before deploying.');
 }
@@ -17,62 +18,15 @@ if (!process.env.JWT_SECRET) {
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 // Serve static files from the current directory
 app.use(express.static(__dirname));
-
-// Database connection & initialization
-const dbInitPromise = async () => {
-  try {
-    const db = await dbPromise;
-    // Create users table if it doesn't exist
-    await db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'user',
-        isActive INTEGER NOT NULL DEFAULT 1,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    // Create default admin if not exists
-    const adminUser = await db.get(`SELECT * FROM users WHERE email = 'admin@system.com'`);
-    if (!adminUser) {
-      const hashedPassword = await bcrypt.hash('admin123', 10);
-      await db.run(`
-        INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
-        VALUES (?, ?, ?, 'admin', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, ['admin', 'admin@system.com', hashedPassword]);
-      console.log('Default admin user created: admin@system.com / admin123');
-    }
-
-    console.log('Connected to SQLite database and synced models');
-  } catch (err) {
-    console.error('Database connection error:', err);
-    throw err;
-  }
-};
-
-const initPromise = dbInitPromise();
-
-// Middleware to ensure DB is initialized before handling any requests
-app.use(async (req, res, next) => {
-  try {
-    await initPromise;
-    next();
-  } catch (err) {
-    res.status(500).json({ message: 'Server database initialization failed' });
-  }
-});
 
 // --- Auth Middlewares ---
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'No token provided' });
+    return res.status(401).json({ success: false, message: 'No token provided' });
   }
   const token = authHeader.split(' ')[1];
   try {
@@ -80,7 +34,7 @@ const authMiddleware = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 };
 
@@ -88,115 +42,150 @@ const adminMiddleware = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
     next();
   } else {
-    return res.status(403).json({ message: 'Admin access required' });
+    return res.status(403).json({ success: false, message: 'Admin access required' });
   }
 };
 
 // --- API Routes ---
 
-// Register a new user
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ success: true, message: 'Server is running' });
+});
+
 app.post('/api/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    const db = await dbPromise;
-
-    // Check if user already exists
-    const existingUser = await db.get(`SELECT * FROM users WHERE email = ? OR username = ?`, [email, username]);
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email or Username already exists' });
+    
+    if (!username || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Username, email, and password are required' });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
     }
 
-    // Hash password
+    const db = await dbPromise;
+    const existingUser = await db.get(`SELECT * FROM users WHERE email = ? OR username = ?`, [email, username]);
+    if (existingUser) {
+      return res.status(409).json({ success: false, message: 'Email or username already exists' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user
     await db.run(`
       INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
       VALUES (?, ?, ?, 'user', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `, [username, email, hashedPassword]);
 
-    res.status(201).json({ message: 'User registered successfully' });
+    res.status(201).json({ success: true, message: 'User registered successfully' });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ message: 'Server error during registration' });
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
   }
 });
 
-// Login user
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required' });
+    }
+
     const db = await dbPromise;
-
-    // Find user
     const user = await db.get(`SELECT * FROM users WHERE email = ?`, [email]);
+    
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
-    // Check if user is active
+    if (user.role !== 'user') {
+      return res.status(403).json({ success: false, message: 'Access denied. User role required.' });
+    }
+
     if (!user.isActive) {
-      return res.status(403).json({ message: 'Your account has been deactivated. Contact admin.' });
+      return res.status(403).json({ success: false, message: 'Your account has been deactivated. Contact admin.' });
     }
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
-    // Generate token
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
+      { id: user.id, username: user.username, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '1d' }
     );
 
     res.status(200).json({
+      success: true,
       message: 'Login successful',
       token,
       user: { id: user.id, username: user.username, email: user.email, role: user.role }
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Server error during login' });
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
   }
 });
 
-// Admin Login
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const db = await dbPromise;
+    
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required' });
+    }
 
+    const db = await dbPromise;
     const user = await db.get(`SELECT * FROM users WHERE email = ?`, [email]);
-    if (!user || user.role !== 'admin') {
-      return res.status(401).json({ message: 'Invalid Admin credentials' });
+    
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid Admin credentials' });
+    }
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Admin role required.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid Admin credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid Admin credentials' });
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
+      { id: user.id, username: user.username, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '1d' }
     );
 
     res.status(200).json({
+      success: true,
       message: 'Admin login successful',
       token,
       user: { username: user.username, email: user.email, role: user.role }
     });
   } catch (error) {
     console.error('Admin login error:', error);
-    res.status(500).json({ message: 'Server error during login' });
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
   }
 });
 
-// Get User Activity Chart Data
+app.get('/api/me', authMiddleware, async (req, res) => {
+  try {
+    const db = await dbPromise;
+    const user = await db.get(`SELECT id, username, email, role, isActive, createdAt FROM users WHERE id = ?`, [req.user.id]);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.status(200).json({ success: true, user });
+  } catch (error) {
+    console.error('Get me error:', error);
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
+  }
+});
+
 app.get('/api/user/activity', authMiddleware, async (req, res) => {
   try {
     const data = {
@@ -208,11 +197,11 @@ app.get('/api/user/activity', authMiddleware, async (req, res) => {
     };
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Server error fetching activity data' });
+    console.error('User activity error:', error);
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
   }
 });
 
-// Get Admin Traffic Chart Data
 app.get('/api/admin/traffic', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const data = {
@@ -224,23 +213,22 @@ app.get('/api/admin/traffic', authMiddleware, adminMiddleware, async (req, res) 
     };
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Server error fetching traffic data' });
+    console.error('Admin traffic error:', error);
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
   }
 });
 
-// Get user count (for Admin Dashboard)
 app.get('/api/users/count', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const db = await dbPromise;
     const row = await db.get(`SELECT COUNT(*) AS count FROM users WHERE role = 'user'`);
-    res.status(200).json({ count: row.count });
+    res.status(200).json({ success: true, count: row.count });
   } catch (error) {
     console.error('Error fetching user count:', error);
-    res.status(500).json({ message: 'Server error fetching user count' });
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
   }
 });
 
-// Admin: Get all users (with search support)
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { search } = req.query;
@@ -267,18 +255,17 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) =>
     res.status(200).json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
-    res.status(500).json({ message: 'Server error fetching users' });
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
   }
 });
 
-// Admin: Toggle User Status
 app.put('/api/admin/users/:id/status', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const db = await dbPromise;
     const user = await db.get(`SELECT * FROM users WHERE id = ?`, [req.params.id]);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     
-    if (user.role === 'admin') return res.status(400).json({ message: 'Cannot deactivate an admin' });
+    if (user.role === 'admin') return res.status(403).json({ success: false, message: 'Cannot deactivate an admin' });
 
     await db.run(`
       UPDATE users
@@ -287,20 +274,66 @@ app.put('/api/admin/users/:id/status', authMiddleware, adminMiddleware, async (r
       WHERE id = ?
     `, [req.params.id]);
     
-    user.isActive = !user.isActive; // Toggle for response
-    res.status(200).json({ message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`, user });
+    res.status(200).json({ success: true, message: `User ${!user.isActive ? 'activated' : 'deactivated'} successfully` });
   } catch (error) {
     console.error('Error updating user status:', error);
-    res.status(500).json({ message: 'Server error updating status' });
+    res.status(500).json({ success: false, message: 'Unexpected server error' });
   }
 });
 
-// Start Server
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-  });
-}
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("GLOBAL ERROR HANDLER:", err);
+  res.status(500).json({ success: false, message: 'Unexpected server error' });
+});
+
+
+// Database connection & initialization
+const startServer = async () => {
+  try {
+    const db = await dbPromise;
+    console.log('SQLite database connected successfully.');
+    
+    // Create users table if it doesn't exist
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        isActive INTEGER NOT NULL DEFAULT 1,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    console.log('SQLite database initialized successfully.');
+
+    // Create default admin if not exists
+    const adminUser = await db.get(`SELECT * FROM users WHERE email = 'admin@system.com'`);
+    if (!adminUser) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await db.run(`
+        INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
+        VALUES (?, ?, ?, 'admin', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `, ['admin', 'admin@system.com', hashedPassword]);
+      console.log('Default admin created: admin@system.com / admin123');
+    }
+
+    if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      app.listen(PORT, () => {
+        console.log(`Server running at http://localhost:${PORT}`);
+      });
+    }
+
+  } catch (err) {
+    console.error('Database connection/initialization error:', err);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 // Export the app for Vercel Serverless Functions
 module.exports = app;
