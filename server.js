@@ -23,7 +23,7 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // Database connection (SQLite)
-sequelize.sync()
+const dbInitPromise = sequelize.sync()
 .then(async () => {
   console.log('Connected to SQLite database and synced models');
   // Create default admin if not exists
@@ -39,7 +39,20 @@ sequelize.sync()
     console.log('Default admin user created: admin@system.com / admin123');
   }
 })
-.catch(err => console.error('Database connection error:', err));
+.catch(err => {
+  console.error('Database connection error:', err);
+  throw err; // Re-throw to be caught by the middleware
+});
+
+// Middleware to ensure DB is initialized before handling any requests
+app.use(async (req, res, next) => {
+  try {
+    await dbInitPromise;
+    next();
+  } catch (err) {
+    res.status(500).json({ message: 'Server database initialization failed' });
+  }
+});
 
 // --- Auth Middlewares ---
 const authMiddleware = (req, res, next) => {
