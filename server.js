@@ -1,11 +1,9 @@
 const express = require('express');
-const { Op } = require('sequelize');
-const sequelize = require('./db');
+const pool = require('./db');
 const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const User = require('./models/User');
 
 require('dotenv').config();
 
@@ -22,32 +20,47 @@ app.use(express.json());
 // Serve static files from the current directory
 app.use(express.static(__dirname));
 
-// Database connection (SQLite)
-const dbInitPromise = sequelize.sync()
-.then(async () => {
-  console.log('Connected to SQLite database and synced models');
-  // Create default admin if not exists
-  const adminExists = await User.findOne({ where: { email: 'admin@system.com' } });
-  if (!adminExists) {
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    await User.create({
-      username: 'admin',
-      email: 'admin@system.com',
-      password: hashedPassword,
-      role: 'admin'
-    });
-    console.log('Default admin user created: admin@system.com / admin123');
+// Database connection & initialization
+const dbInitPromise = async () => {
+  try {
+    // Create users table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(255) NOT NULL UNIQUE,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'user',
+        isActive TINYINT(1) NOT NULL DEFAULT 1,
+        createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Create default admin if not exists
+    const [rows] = await pool.query(`SELECT * FROM users WHERE email = 'admin@system.com'`);
+    if (rows.length === 0) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await pool.execute(`
+        INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
+        VALUES (?, ?, ?, 'admin', 1, NOW(), NOW())
+      `, ['admin', 'admin@system.com', hashedPassword]);
+      console.log('Default admin user created: admin@system.com / admin123');
+    }
+
+    console.log('Connected to MySQL database and synced models');
+  } catch (err) {
+    console.error('Database connection error:', err);
+    throw err;
   }
-})
-.catch(err => {
-  console.error('Database connection error:', err);
-  throw err; // Re-throw to be caught by the middleware
-});
+};
+
+const initPromise = dbInitPromise();
 
 // Middleware to ensure DB is initialized before handling any requests
 app.use(async (req, res, next) => {
   try {
-    await dbInitPromise;
+    await initPromise;
     next();
   } catch (err) {
     res.status(500).json({ message: 'Server database initialization failed' });
@@ -86,8 +99,8 @@ app.post('/api/register', async (req, res) => {
     const { username, email, password } = req.body;
 
     // Check if user already exists
-    const existingUser = await User.findOne({ where: { [Op.or]: [{ email }, { username }] } });
-    if (existingUser) {
+    const [existingUsers] = await pool.execute(`SELECT * FROM users WHERE email = ? OR username = ?`, [email, username]);
+    if (existingUsers.length > 0) {
       return res.status(400).json({ message: 'Email or Username already exists' });
     }
 
@@ -95,7 +108,10 @@ app.post('/api/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create new user
-    const newUser = await User.create({ username, email, password: hashedPassword });
+    await pool.execute(`
+      INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
+      VALUES (?, ?, ?, 'user', 1, NOW(), NOW())
+    `, [username, email, hashedPassword]);
 
     res.status(201).json({ message: 'User registered successfully' });
   } catch (error) {
@@ -110,10 +126,11 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
     // Find user
-    const user = await User.findOne({ where: { email } });
-    if (!user) {
+    const [users] = await pool.execute(`SELECT * FROM users WHERE email = ?`, [email]);
+    if (users.length === 0) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
+    const user = users[0];
 
     // Check if user is active
     if (!user.isActive) {
@@ -149,10 +166,11 @@ app.post('/api/admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ where: { email } });
-    if (!user || user.role !== 'admin') {
+    const [users] = await pool.execute(`SELECT * FROM users WHERE email = ?`, [email]);
+    if (users.length === 0 || users[0].role !== 'admin') {
       return res.status(401).json({ message: 'Invalid Admin credentials' });
     }
+    const user = users[0];
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
@@ -179,7 +197,6 @@ app.post('/api/admin/login', async (req, res) => {
 // Get User Activity Chart Data
 app.get('/api/user/activity', authMiddleware, async (req, res) => {
   try {
-    // Mocking user activity data for the chart
     const data = {
       labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       datasets: [{
@@ -196,7 +213,6 @@ app.get('/api/user/activity', authMiddleware, async (req, res) => {
 // Get Admin Traffic Chart Data
 app.get('/api/admin/traffic', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    // Mocking traffic data for the admin chart
     const data = {
       labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
       datasets: [{
@@ -213,8 +229,8 @@ app.get('/api/admin/traffic', authMiddleware, adminMiddleware, async (req, res) 
 // Get user count (for Admin Dashboard)
 app.get('/api/users/count', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const count = await User.count({ where: { role: 'user' } });
-    res.status(200).json({ count });
+    const [rows] = await pool.execute(`SELECT COUNT(*) AS count FROM users WHERE role = 'user'`);
+    res.status(200).json({ count: rows[0].count });
   } catch (error) {
     console.error('Error fetching user count:', error);
     res.status(500).json({ message: 'Server error fetching user count' });
@@ -225,20 +241,27 @@ app.get('/api/users/count', authMiddleware, adminMiddleware, async (req, res) =>
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { search } = req.query;
-    let query = { role: 'user' }; // Only show normal users, not admins
+    let users = [];
 
     if (search) {
-      query[Op.or] = [
-        { username: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } }
-      ];
+      const [rows] = await pool.execute(`
+        SELECT id, username, email, role, isActive, createdAt, updatedAt
+        FROM users
+        WHERE role = 'user'
+          AND (username LIKE CONCAT('%', ?, '%') OR email LIKE CONCAT('%', ?, '%'))
+        ORDER BY createdAt DESC
+      `, [search, search]);
+      users = rows;
+    } else {
+      const [rows] = await pool.execute(`
+        SELECT id, username, email, role, isActive, createdAt, updatedAt
+        FROM users
+        WHERE role = 'user'
+        ORDER BY createdAt DESC
+      `);
+      users = rows;
     }
 
-    const users = await User.findAll({ 
-      where: query, 
-      attributes: { exclude: ['password'] }, 
-      order: [['createdAt', 'DESC']] 
-    });
     res.status(200).json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -249,14 +272,21 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) =>
 // Admin: Toggle User Status
 app.put('/api/admin/users/:id/status', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const [users] = await pool.execute(`SELECT * FROM users WHERE id = ?`, [req.params.id]);
+    if (users.length === 0) return res.status(404).json({ message: 'User not found' });
+    const user = users[0];
+    
     if (user.role === 'admin') return res.status(400).json({ message: 'Cannot deactivate an admin' });
 
-    user.isActive = !user.isActive;
-    await user.save();
+    await pool.execute(`
+      UPDATE users
+      SET isActive = CASE isActive WHEN 1 THEN 0 ELSE 1 END,
+          updatedAt = NOW()
+      WHERE id = ?
+    `, [req.params.id]);
     
-    res.status(200).json({ message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`, user });
+    user.isActive = !user.isActive; // Toggle for response
+    res.status(200).json({ message: \`User \${user.isActive ? 'activated' : 'deactivated'} successfully\`, user });
   } catch (error) {
     console.error('Error updating user status:', error);
     res.status(500).json({ message: 'Server error updating status' });
@@ -266,7 +296,7 @@ app.put('/api/admin/users/:id/status', authMiddleware, adminMiddleware, async (r
 // Start Server
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(\`Server is running on http://localhost:\${PORT}\`);
   });
 }
 

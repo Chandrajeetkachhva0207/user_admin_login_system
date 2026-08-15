@@ -1,29 +1,16 @@
 require('dotenv').config();
-const { Sequelize } = require('sequelize');
-
-let sequelize;
+const mysql = require('mysql2/promise');
 
 const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
+let pool;
+
 if (dbUrl) {
-  // Use production database if DATABASE_URL or POSTGRES_URL is provided
-  sequelize = new Sequelize(dbUrl, {
-    logging: false,
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false
-      }
-    }
-  });
+  pool = mysql.createPool(dbUrl);
 } else {
-  // Fallback to local SQLite for development or ephemeral Vercel usage
-  sequelize = new Sequelize({
-    dialect: 'sqlite',
-    // Vercel only allows writing to /tmp
-    storage: process.env.VERCEL ? '/tmp/database.sqlite' : 'database.sqlite',
-    logging: false, // Disable logging; set to console.log to see SQL queries
-  });
+  console.warn('WARNING: DATABASE_URL not set! Application requires a valid MySQL connection string.');
+  // Create a dummy pool that will fail on query so the app doesn't crash on boot but fails gracefully when connecting.
+  pool = mysql.createPool('mysql://dummy:dummy@localhost/dummy');
 }
 
-module.exports = sequelize;
+module.exports = pool;
