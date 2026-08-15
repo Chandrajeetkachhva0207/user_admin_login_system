@@ -1,11 +1,11 @@
+require('dotenv').config();
+
 const express = require('express');
-const dbPromise = require('./db');
+const pool = require('./db');
 const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-
-require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,33 +28,32 @@ let isDbInitialized = false;
 const initDb = async () => {
   if (isDbInitialized) return;
   try {
-    const db = await dbPromise;
-    await db.exec(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'user',
-        isActive INTEGER NOT NULL DEFAULT 1,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) NOT NULL UNIQUE,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'user',
+        "isActive" INTEGER NOT NULL DEFAULT 1,
+        "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
     
-    const adminUser = await db.get(`SELECT * FROM users WHERE email = 'admin@system.com'`);
-    if (!adminUser) {
+    const adminUserRes = await pool.query(`SELECT * FROM users WHERE email = 'admin@system.com'`);
+    if (adminUserRes.rows.length === 0) {
       const adminPassword = process.env.ADMIN_PASSWORD || 'AdminSecure!2026';
       const hashedPassword = await bcrypt.hash(adminPassword, 10);
-      await db.run(`
-        INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
-        VALUES (?, ?, ?, 'admin', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      await pool.query(`
+        INSERT INTO users (username, email, password, role, "isActive", "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, 'admin', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `, ['admin', 'admin@system.com', hashedPassword]);
       console.log('Default admin created: admin@system.com / ' + adminPassword);
     }
     
     isDbInitialized = true;
-    console.log('SQLite database initialized successfully.');
+    console.log('PostgreSQL database initialized successfully.');
   } catch (err) {
     console.error('Database connection/initialization error:', err);
     throw err;
@@ -117,17 +116,16 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.' });
     }
 
-    const db = await dbPromise;
-    const existingUser = await db.get(`SELECT * FROM users WHERE email = ? OR username = ?`, [email, username]);
-    if (existingUser) {
+    const existingUserRes = await pool.query(`SELECT * FROM users WHERE email = $1 OR username = $2`, [email, username]);
+    if (existingUserRes.rows.length > 0) {
       return res.status(409).json({ success: false, message: 'Email or username already exists' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await db.run(`
-      INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
-      VALUES (?, ?, ?, 'user', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    await pool.query(`
+      INSERT INTO users (username, email, password, role, "isActive", "createdAt", "updatedAt")
+      VALUES ($1, $2, $3, 'user', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `, [username, email, hashedPassword]);
 
     res.status(201).json({ success: true, message: 'User registered successfully' });
@@ -145,8 +143,8 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
 
-    const db = await dbPromise;
-    const user = await db.get(`SELECT * FROM users WHERE email = ?`, [email]);
+    const userRes = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
+    const user = userRes.rows[0];
     
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -196,8 +194,8 @@ app.post('/api/admin/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid 2FA token' });
     }
 
-    const db = await dbPromise;
-    const user = await db.get(`SELECT * FROM users WHERE email = ?`, [email]);
+    const userRes = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
+    const user = userRes.rows[0];
     
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid Admin credentials' });
@@ -232,8 +230,8 @@ app.post('/api/admin/login', async (req, res) => {
 
 app.get('/api/me', authMiddleware, async (req, res) => {
   try {
-    const db = await dbPromise;
-    const user = await db.get(`SELECT id, username, email, role, isActive, createdAt FROM users WHERE id = ?`, [req.user.id]);
+    const userRes = await pool.query(`SELECT id, username, email, role, "isActive", "createdAt" FROM users WHERE id = $1`, [req.user.id]);
+    const user = userRes.rows[0];
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -278,9 +276,9 @@ app.get('/api/admin/traffic', authMiddleware, adminMiddleware, async (req, res) 
 
 app.get('/api/users/count', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const db = await dbPromise;
-    const row = await db.get(`SELECT COUNT(*) AS count FROM users WHERE role = 'user'`);
-    res.status(200).json({ success: true, count: row.count });
+    const rowRes = await pool.query(`SELECT COUNT(*) AS count FROM users WHERE role = 'user'`);
+    const count = rowRes.rows[0].count;
+    res.status(200).json({ success: true, count });
   } catch (error) {
     console.error('Error fetching user count:', error);
     res.status(500).json({ success: false, message: 'Unexpected server error' });
@@ -290,24 +288,25 @@ app.get('/api/users/count', authMiddleware, adminMiddleware, async (req, res) =>
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { search } = req.query;
-    const db = await dbPromise;
     let users = [];
 
     if (search) {
-      users = await db.all(`
-        SELECT id, username, email, role, isActive, createdAt, updatedAt
+      const usersRes = await pool.query(`
+        SELECT id, username, email, role, "isActive", "createdAt", "updatedAt"
         FROM users
         WHERE role = 'user'
-          AND (username LIKE ? OR email LIKE ?)
-        ORDER BY createdAt DESC
+          AND (username ILIKE $1 OR email ILIKE $2)
+        ORDER BY "createdAt" DESC
       `, ['%' + search + '%', '%' + search + '%']);
+      users = usersRes.rows;
     } else {
-      users = await db.all(`
-        SELECT id, username, email, role, isActive, createdAt, updatedAt
+      const usersRes = await pool.query(`
+        SELECT id, username, email, role, "isActive", "createdAt", "updatedAt"
         FROM users
         WHERE role = 'user'
-        ORDER BY createdAt DESC
+        ORDER BY "createdAt" DESC
       `);
+      users = usersRes.rows;
     }
 
     res.status(200).json(users);
@@ -319,18 +318,24 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) =>
 
 app.put('/api/admin/users/:id/status', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const db = await dbPromise;
-    const user = await db.get(`SELECT * FROM users WHERE id = ?`, [req.params.id]);
+    const userRes = await pool.query(`SELECT * FROM users WHERE id = $1`, [req.params.id]);
+    const user = userRes.rows[0];
+    
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     
     if (user.role === 'admin') return res.status(403).json({ success: false, message: 'Cannot deactivate an admin' });
 
-    await db.run(`
+    // SQLite: CASE isActive WHEN 1 THEN 0 ELSE 1 END
+    // Postgres doesn't easily let you toggle int like that dynamically in a simple query, 
+    // we can do it in JS since we have the user object.
+    const newIsActive = user.isActive === 1 ? 0 : 1;
+
+    await pool.query(`
       UPDATE users
-      SET isActive = CASE isActive WHEN 1 THEN 0 ELSE 1 END,
-          updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [req.params.id]);
+      SET "isActive" = $1,
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE id = $2
+    `, [newIsActive, req.params.id]);
     
     res.status(200).json({ success: true, message: `User ${!user.isActive ? 'activated' : 'deactivated'} successfully` });
   } catch (error) {
@@ -351,6 +356,8 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
       console.log(`Server running at http://localhost:${PORT}`);
     });
+  }).catch(e => {
+    console.error("Failed to start server locally", e);
   });
 }
 
