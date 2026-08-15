@@ -3,9 +3,11 @@ const { Sequelize } = require('sequelize');
 
 let sequelize;
 
-if (process.env.DATABASE_URL) {
-  // Use production database if DATABASE_URL is provided
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
+const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+if (dbUrl) {
+  // Use production database if DATABASE_URL or POSTGRES_URL is provided
+  sequelize = new Sequelize(dbUrl, {
     logging: false,
     dialectOptions: {
       ssl: {
