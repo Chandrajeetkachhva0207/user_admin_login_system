@@ -251,6 +251,11 @@ app.put('/api/admin/users/:id/status', authMiddleware, adminMiddleware, async (r
 });
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+}
+
+// Export the app for Vercel Serverless Functions
+module.exports = app;
