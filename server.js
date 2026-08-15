@@ -44,12 +44,13 @@ const initDb = async () => {
     
     const adminUser = await db.get(`SELECT * FROM users WHERE email = 'admin@system.com'`);
     if (!adminUser) {
-      const hashedPassword = await bcrypt.hash('admin123', 10);
+      const adminPassword = process.env.ADMIN_PASSWORD || 'AdminSecure!2026';
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
       await db.run(`
         INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
         VALUES (?, ?, ?, 'admin', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `, ['admin', 'admin@system.com', hashedPassword]);
-      console.log('Default admin created: admin@system.com / admin123');
+      console.log('Default admin created: admin@system.com / ' + adminPassword);
     }
     
     isDbInitialized = true;
@@ -111,8 +112,9 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Username, email, and password are required' });
     }
     
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.' });
     }
 
     const db = await dbPromise;
@@ -183,10 +185,15 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/admin/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, token } = req.body;
     
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
+    }
+    
+    const requiredToken = process.env.ADMIN_2FA_TOKEN;
+    if (requiredToken && token !== requiredToken) {
+      return res.status(401).json({ success: false, message: 'Invalid 2FA token' });
     }
 
     const db = await dbPromise;
@@ -205,7 +212,7 @@ app.post('/api/admin/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid Admin credentials' });
     }
 
-    const token = jwt.sign(
+    const jwtToken = jwt.sign(
       { id: user.id, username: user.username, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '1d' }
@@ -214,7 +221,7 @@ app.post('/api/admin/login', async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Admin login successful',
-      token,
+      token: jwtToken,
       user: { username: user.username, email: user.email, role: user.role }
     });
   } catch (error) {

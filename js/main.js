@@ -256,15 +256,16 @@ function initAdminLoginPage() {
     e.preventDefault();
     const email = document.getElementById('adminId').value.trim();
     const password = document.getElementById('password').value;
+    const tokenInput = document.getElementById('token');
+    const token = tokenInput ? tokenInput.value.trim() : undefined;
     const button = form.querySelector('button[type="submit"]');
 
-    // Note: the 2FA token field on this page isn't wired to a backend check
-    // yet (see README) - login succeeds on valid admin credentials alone.
+    // Send token if provided
     setButtonLoading(button, true, 'Authenticating...');
     try {
       const data = await apiFetch('/admin/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, token }),
       });
       saveSession(data.token, data.user);
       showToast('Admin login successful. Redirecting...', 'success');
