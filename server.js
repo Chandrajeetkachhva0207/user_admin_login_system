@@ -22,6 +22,57 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the current directory
 app.use(express.static(__dirname));
 
+// --- Database Initialization Middleware (Crucial for Vercel) ---
+let isDbInitialized = false;
+
+const initDb = async () => {
+  if (isDbInitialized) return;
+  try {
+    const db = await dbPromise;
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        isActive INTEGER NOT NULL DEFAULT 1,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    const adminUser = await db.get(`SELECT * FROM users WHERE email = 'admin@system.com'`);
+    if (!adminUser) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await db.run(`
+        INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
+        VALUES (?, ?, ?, 'admin', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `, ['admin', 'admin@system.com', hashedPassword]);
+      console.log('Default admin created: admin@system.com / admin123');
+    }
+    
+    isDbInitialized = true;
+    console.log('SQLite database initialized successfully.');
+  } catch (err) {
+    console.error('Database connection/initialization error:', err);
+    throw err;
+  }
+};
+
+const initPromise = initDb();
+
+app.use(async (req, res, next) => {
+  try {
+    if (!isDbInitialized) {
+      await initPromise;
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server database initialization failed' });
+  }
+});
+
 // --- Auth Middlewares ---
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -287,53 +338,14 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Unexpected server error' });
 });
 
-
-// Database connection & initialization
-const startServer = async () => {
-  try {
-    const db = await dbPromise;
-    console.log('SQLite database connected successfully.');
-    
-    // Create users table if it doesn't exist
-    await db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'user',
-        isActive INTEGER NOT NULL DEFAULT 1,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    
-    console.log('SQLite database initialized successfully.');
-
-    // Create default admin if not exists
-    const adminUser = await db.get(`SELECT * FROM users WHERE email = 'admin@system.com'`);
-    if (!adminUser) {
-      const hashedPassword = await bcrypt.hash('admin123', 10);
-      await db.run(`
-        INSERT INTO users (username, email, password, role, isActive, createdAt, updatedAt)
-        VALUES (?, ?, ?, 'admin', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, ['admin', 'admin@system.com', hashedPassword]);
-      console.log('Default admin created: admin@system.com / admin123');
-    }
-
-    if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-      app.listen(PORT, () => {
-        console.log(`Server running at http://localhost:${PORT}`);
-      });
-    }
-
-  } catch (err) {
-    console.error('Database connection/initialization error:', err);
-    process.exit(1);
-  }
-};
-
-startServer();
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  // If running locally as a standalone script, start the server once initialized.
+  initPromise.then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running at http://localhost:${PORT}`);
+    });
+  });
+}
 
 // Export the app for Vercel Serverless Functions
 module.exports = app;
