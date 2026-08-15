@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Dashboard | Professional UI</title>
+  <meta name="description" content="User dashboard area.">
+  <link rel="stylesheet" href="./css/styles.css">
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div id="toast-container"></div>
+
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h2>ProSystem</h2>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-tab="overview">
+          <i class="fa-solid fa-house"></i> <span>Overview</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="profile">
+          <i class="fa-solid fa-user"></i> <span>My Profile</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="activity">
+          <i class="fa-solid fa-list-check"></i> <span>Activity</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="notifications">
+          <i class="fa-solid fa-bell"></i> <span>Notifications</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="settings">
+          <i class="fa-solid fa-gear"></i> <span>Settings</span>
+        </a>
+        <a href="#" class="nav-item" id="sidebarLogoutBtn">
+          <i class="fa-solid fa-power-off"></i> <span>Logout</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="btn-primary" style="width: 100%; background: var(--input-bg); color: var(--text-main);" onclick="toggleTheme()">
+          <i class="fa-solid fa-moon"></i> Theme
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Nav -->
+      <header class="top-nav">
+        <div class="nav-left">
+          <button class="sidebar-toggle" onclick="toggleSidebar()">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="search-bar">
+            <i class="fa-solid fa-search"></i>
+            <input type="text" placeholder="Search...">
+          </div>
+        </div>
+        <div class="nav-right">
+          <button class="icon-btn">
+            <i class="fa-regular fa-bell"></i>
+            <span class="badge">3</span>
+          </button>
+          <div class="user-profile" id="userProfileBtn">
+            <div class="avatar" id="avatarInitial">U</div>
+            <div class="user-info">
+              <span class="user-name" id="displayUsername">User</span>
+              <span class="user-role">Member</span>
+            </div>
+            <i class="fa-solid fa-chevron-down" style="font-size: 12px; margin-left: 8px;"></i>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dashboard Body -->
+      <div class="dashboard-body">
+        
+        <!-- Overview Tab -->
+        <div id="overview-tab" class="tab-content active">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Welcome back!</h1>
+              <p class="page-subtitle" id="displayEmail">user@example.com</p>
+            </div>
+            <button id="logoutBtn" class="btn-primary" style="background: var(--danger);">
+              <i class="fa-solid fa-power-off"></i> Logout
+            </button>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon blue"><i class="fa-solid fa-clock"></i></div>
+              <div class="stat-details">
+                <h3>24h</h3>
+                <p>Active Session</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon green"><i class="fa-solid fa-shield-halved"></i></div>
+              <div class="stat-details">
+                <h3>Secure</h3>
+                <p>Account Status</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="chart-container">
+            <h3 style="margin-bottom: 20px;">Activity Overview</h3>
+            <div style="position: relative; height: 250px; width: 100%;">
+              <canvas id="activityChart" class="skeleton" style="border-radius: 8px;"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profile Tab -->
+        <div id="profile-tab" class="tab-content">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">My Profile</h1>
+              <p class="page-subtitle">Manage your personal information and account details</p>
+            </div>
+          </div>
+          <div class="profile-container">
+            <div class="profile-sidebar">
+              <div class="profile-avatar-wrapper">
+                <div class="profile-avatar-large" id="profileAvatarInitial">U</div>
+                <button class="btn-edit-avatar"><i class="fa-solid fa-camera"></i></button>
+              </div>
+              <h3 id="profileNameDisplay">User</h3>
+              <p class="text-muted" id="profileRoleDisplay">Member</p>
+            </div>
+            <div class="profile-content">
+              <form id="profileForm" class="custom-form">
+                <div class="form-row">
+                  <div class="input-group">
+                    <label>Full Name</label>
+                    <input type="text" id="profileName" placeholder="Enter your full name">
+                  </div>
+                  <div class="input-group">
+                    <label>Email Address</label>
+                    <input type="email" id="profileEmail" disabled>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="input-group">
+                    <label>Phone Number</label>
+                    <input type="tel" id="profilePhone" placeholder="+1 (555) 000-0000">
+                  </div>
+                  <div class="input-group">
+                    <label>Skills / Role Title</label>
+                    <input type="text" id="profileSkills" placeholder="e.g. Developer, Designer">
+                  </div>
+                </div>
+                <div class="input-group" style="margin-top: 16px;">
+                  <label>Bio</label>
+                  <textarea id="profileBio" rows="4" placeholder="Tell us about yourself..."></textarea>
+                </div>
+                <div class="form-actions" style="margin-top: 24px;">
+                  <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity Tab -->
+        <div id="activity-tab" class="tab-content">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Activity Log</h1>
+              <p class="page-subtitle">Recent actions and account history</p>
+            </div>
+          </div>
+          <div class="timeline-container">
+            <div class="timeline">
+              <div class="timeline-item">
+                <div class="timeline-icon blue"><i class="fa-solid fa-right-to-bracket"></i></div>
+                <div class="timeline-content">
+                  <h4>Logged In</h4>
+                  <p>Successfully logged in from IP 192.168.1.1 (Windows)</p>
+                  <span class="timeline-time">Just now</span>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-icon green"><i class="fa-solid fa-user-pen"></i></div>
+                <div class="timeline-content">
+                  <h4>Profile Updated</h4>
+                  <p>Changed profile photo and updated bio</p>
+                  <span class="timeline-time">Yesterday at 4:30 PM</span>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-icon orange"><i class="fa-solid fa-shield"></i></div>
+                <div class="timeline-content">
+                  <h4>Security Alert</h4>
+                  <p>New login detected on Chrome (Mac OS)</p>
+                  <span class="timeline-time">Oct 24, 2026</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div id="notifications-tab" class="tab-content">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Notifications</h1>
+              <p class="page-subtitle">System alerts and messages</p>
+            </div>
+            <button class="btn-primary" style="background: var(--input-bg); color: var(--text-main); width: auto;">Mark all as read</button>
+          </div>
+          <div class="notification-list">
+            <div class="notification-card unread">
+              <div class="notif-icon info"><i class="fa-solid fa-circle-info"></i></div>
+              <div class="notif-content">
+                <h4>System Update v2.0</h4>
+                <p>We've updated our platform with new features including an improved dashboard experience.</p>
+                <span class="notif-time">2 hours ago</span>
+              </div>
+              <div class="notif-action">
+                <button class="icon-btn"><i class="fa-solid fa-check"></i></button>
+              </div>
+            </div>
+            <div class="notification-card unread">
+              <div class="notif-icon warning"><i class="fa-solid fa-triangle-exclamation"></i></div>
+              <div class="notif-content">
+                <h4>Password Expiry</h4>
+                <p>Your password will expire in 3 days. Please update it in settings.</p>
+                <span class="notif-time">1 day ago</span>
+              </div>
+              <div class="notif-action">
+                <button class="icon-btn"><i class="fa-solid fa-check"></i></button>
+              </div>
+            </div>
+            <div class="notification-card">
+              <div class="notif-icon success"><i class="fa-solid fa-check-circle"></i></div>
+              <div class="notif-content">
+                <h4>Account Verified</h4>
+                <p>Your email address has been successfully verified.</p>
+                <span class="notif-time">Oct 20, 2026</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="./js/main.js"></script>
+</body>
+</html>

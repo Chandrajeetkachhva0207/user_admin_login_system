@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2FA Verification | Professional UI</title>
+  <meta name="description" content="Two-factor authentication interface.">
+  <link rel="stylesheet" href="./css/styles.css">
+  <link rel="stylesheet" href="./css/auth.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div id="toast-container"></div>
+
+  <div class="auth-wrapper">
+    <div class="auth-sidebar" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+      <div class="auth-sidebar-content">
+        <h1>Extra Security</h1>
+        <p>We take your account security seriously. Please verify your identity to proceed.</p>
+      </div>
+    </div>
+
+    <div class="auth-main">
+      <div class="auth-container">
+        <div class="glass-card" style="text-align: center;">
+          <div class="auth-header">
+            <h2>Two-Factor Authentication</h2>
+            <p>Enter the 6-digit code sent to your email.</p>
+          </div>
+
+          <form id="twoFactorForm">
+            <div class="token-input-group">
+              <input type="text" class="token-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" class="token-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" class="token-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" class="token-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" class="token-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" class="token-input" maxlength="1" pattern="[0-9]" required>
+            </div>
+
+            <button type="submit" class="btn-primary" style="background: #f59e0b;">
+              <span>Verify Identity</span>
+              <i class="fa-solid fa-check-circle"></i>
+            </button>
+          </form>
+
+          <div class="auth-footer">
+            Didn't receive code? <a href="#" style="color: #f59e0b;">Resend</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/main.js"></script>
+</body>
+</html>

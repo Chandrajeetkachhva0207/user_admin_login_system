@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Login | Professional UI</title>
+  <meta name="description" content="A stunning and responsive user login interface.">
+  <link rel="stylesheet" href="./css/styles.css">
+  <link rel="stylesheet" href="./css/auth.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div id="toast-container"></div>
+
+  <div class="auth-wrapper">
+    <!-- Left Sidebar Branding -->
+    <div class="auth-sidebar">
+      <div class="auth-sidebar-content">
+        <h1>Welcome to ProSystem</h1>
+        <p>Experience the next generation of secure, seamless user management and real-time dashboard analytics.</p>
+      </div>
+    </div>
+
+    <!-- Right Main Area -->
+    <div class="auth-main">
+      <div class="auth-container">
+        <div class="glass-card">
+          <div class="auth-header">
+            <h2>Welcome Back</h2>
+            <p>Sign in to your account to continue</p>
+          </div>
+
+          <form id="loginForm">
+            <div class="form-group">
+              <label for="email">Email Address</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-envelope icon"></i>
+                <input type="email" id="email" placeholder="you@example.com" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="password">Password</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-lock icon"></i>
+                <input type="password" id="password" placeholder="••••••••" required>
+                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('password')">
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-options">
+              <label class="checkbox-wrapper">
+                <input type="checkbox" id="rememberMe">
+                <span>Remember Me</span>
+              </label>
+              <a href="#" class="forgot-password">Forgot password?</a>
+            </div>
+
+            <button type="submit" class="btn-primary">
+              <span>Sign In</span>
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </form>
+
+          <div class="auth-footer">
+            Don't have an account? <a href="register.html">Sign up</a>
+          </div>
+
+          <div class="role-switch">
+            <a href="index.html" class="role-badge active">User</a>
+            <a href="admin-login.html" class="role-badge">Admin</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+/* ---------- Auth Layout ---------- */
+.auth-wrapper {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.auth-sidebar {
+  flex: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .auth-sidebar {
+    display: flex;
+  }
+}
+
+.auth-sidebar::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 50%);
+  animation: pulse 15s infinite linear;
+}
+
+@keyframes pulse {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.auth-sidebar-content {
+  max-width: 480px;
+  position: relative;
+  z-index: 10;
+}
+
+.auth-sidebar-content h1 {
+  color: #fff;
+  font-size: 2.75rem;
+  margin-bottom: 24px;
+  line-height: 1.2;
+}
+
+.auth-sidebar-content p {
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.7;
+  font-size: 1.125rem;
+  font-family: var(--font-primary);
+}
+
+.auth-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--bg);
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 440px;
+  animation: authFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes authFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  padding: 48px 40px;
+}
+
+[data-theme="dark"] .glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.auth-header h2 {
+  font-size: 1.875rem;
+  margin-bottom: 8px;
+}
+
+.auth-header p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.role-switch {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.role-badge {
+  padding: 8px 24px;
+  border-radius: 30px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--input-bg);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.role-badge:hover {
+  background: var(--border);
+  color: var(--text-main);
+}
+
+.role-badge.active {
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* ---------- 2FA token inputs ---------- */
+.token-input-group {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.token-input {
+  width: 54px;
+  height: 64px;
+  text-align: center;
+  font-size: 1.75rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.token-input:focus {
+  border-color: var(--primary);
+  background: var(--card-bg);
+  box-shadow: var(--focus-ring);
+}
