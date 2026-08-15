@@ -4,7 +4,7 @@ const sequelize = require('./db');
 const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 
 require('dotenv').config();
